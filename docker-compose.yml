@@ -1,0 +1,27 @@
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: medical_mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  migration_app:
+    image: python:3.11-slim
+    container_name: medical_migration
+    depends_on:
+      - mongodb
+    environment:
+      - MONGO_URI=mongodb://admin:admin@mongodb:27017/?authSource=admin
+      - CSV_PATH=/app/healthcare_dataset.csv
+    volumes:
+      - .:/app
+    command: bash -c "pip install -r /app/requirements.txt && python /app/migration.py"
+
+volumes:
+  mongo_data:

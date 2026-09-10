@@ -1,0 +1,12 @@
+# Environnement virtuel Python
+env/
+__pycache__/
+
+# Fichiers de configuration sensibles ou secrets
+.env
+*.pem
+id_ed25519*
+
+# Fichiers système
+.DS_Store
+Thumbs.db
