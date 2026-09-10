@@ -9,17 +9,19 @@ services:
       - MONGO_INITDB_ROOT_USERNAME=admin
       - MONGO_INITDB_ROOT_PASSWORD=admin
     volumes:
-      - mongo_data:/data/db # Persistance des données exigée par le projet
+      - mongo_data:/data/db # Persistance des données MongoDB
 
-  # --- CONTENEUR 2 : TON SCRIPT PYTHON ---
+  # --- CONTENEUR 2 : LE SCRIPT PYTHON DE MIGRATION ---
   migration_app:
-    build: . # Dit à Docker de lire le Dockerfile qu'on vient de créer
+    build: .
     container_name: python_migration
     depends_on:
-      - mongodb # Essentiel : Python doit attendre que MongoDB démarre
+      - mongodb
     environment:
-      # L'URI pour que Python trouve la base de données sur le réseau virtuel de Docker
       - MONGO_URI=mongodb://admin:admin@mongodb:27017/?authSource=admin
+      - CSV_PATH=/app/src/data/healthcare_dataset.csv
+    volumes:
+      - ./src/data:/app/src/data # Volume pour isoler et persister/externaliser le CSV (recommandation projet)[cite: 8]
 
 volumes:
   mongo_data:

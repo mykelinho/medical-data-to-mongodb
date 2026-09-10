@@ -11,7 +11,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 5. On copie tout le reste de ton code (main.py, le dossier utils, le CSV)
-COPY . .
+COPY src/ ./src/
 
 # 6. La commande par défaut pour lancer la migration
 CMD ["python", "main.py"]
