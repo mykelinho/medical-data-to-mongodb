@@ -1,27 +1,25 @@
 services:
+  # --- CONTENEUR 1 : LA BASE DE DONNÉES ---
   mongodb:
-    image: mongo:6.0
-    container_name: medical_mongodb
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: admin
+    image: mongo:latest
+    container_name: mongodb_server
     ports:
       - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-
-  migration_app:
-    image: python:3.11-slim
-    container_name: medical_migration
-    depends_on:
-      - mongodb
     environment:
-      - MONGO_URI=mongodb://admin:admin@mongodb:27017/?authSource=admin
-      - CSV_PATH=/app/healthcare_dataset.csv
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin
     volumes:
-      - .:/app
-    command: bash -c "pip install -r /app/requirements.txt && python /app/migration.py"
+      - mongo_data:/data/db # Persistance des données exigée par le projet
+
+  # --- CONTENEUR 2 : TON SCRIPT PYTHON ---
+  migration_app:
+    build: . # Dit à Docker de lire le Dockerfile qu'on vient de créer
+    container_name: python_migration
+    depends_on:
+      - mongodb # Essentiel : Python doit attendre que MongoDB démarre
+    environment:
+      # L'URI pour que Python trouve la base de données sur le réseau virtuel de Docker
+      - MONGO_URI=mongodb://admin:admin@mongodb:27017/?authSource=admin
 
 volumes:
   mongo_data:
