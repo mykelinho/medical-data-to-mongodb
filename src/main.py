@@ -6,16 +6,18 @@ from test import test_crud
 def main():
     csv_path = os.getenv("CSV_PATH", "src/data/healthcare_dataset.csv")
 
-    # Connexion et sélection de la collection
+    # Connexion à MongoDB
     client = get_mongo_client()
     db = client['medical_db']
     collection = db['patients']
 
-    # Chargement, nettoyage et migration
-    df = load_and_clean_data(csv_path)
-    migrate_data(collection, df)
+    # Phase 1 & 2 : Extraction et Nettoyage
+    df_cleaned = load_and_clean_data(csv_path)
 
-    # Tests de validation CRUD
+    # Phase 3 : Chargement
+    migrate_data(collection, df_cleaned)
+
+    # Phase 4 : Tests de validation CRUD
     test_crud(collection)
 
 if __name__ == "__main__":
