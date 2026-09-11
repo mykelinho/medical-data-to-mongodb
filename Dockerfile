@@ -5,7 +5,7 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # 3. On copie le fichier des modules nécessaires (pandas, pymongo...)
-COPY requirements.txt .
+COPY src/requirements.txt .
 
 # 4. On installe ces modules
 RUN pip install --no-cache-dir -r requirements.txt
