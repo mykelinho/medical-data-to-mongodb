@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 
 # 6. La commande par défaut pour lancer la migration
-CMD ["python", "main.py"]
+CMD ["python", "src/main.py"]
