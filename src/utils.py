@@ -8,17 +8,16 @@ VALID_BLOOD_TYPES = {'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'}
 def clean_person_name(raw_name: str, stats: dict, field_key: str):
     """
     Normalise le nom d'une personne (patient ou médecin) :
-    1. Supprime les préfixes de civilité et titres honorifiques/médicaux (Mr, Mrs, Dr, MD, DDS, PhD, DVM...).
-    2. Supprime les suffixes générationnels (Jr, II, III...).
+    1. Conserve toutes les informations (y compris les civilités et titres médicaux).
+    2. Nettoie la ponctuation parasite (virgules) et les espaces multiples.
     3. Corrige la casse anarchique pour appliquer un format Title Case uniforme.
     4. Incrémente le compteur de statistiques si le texte a été retouché.
-    5. Retourne None (valeur BSON null dans MongoDB) si la valeur est manquante ou vide.
+    5. Retourne None (valeur BSON null dans MongoDB) si la valeur est manquante.
     
     Exemples de transformation :
-        - "mR. DAVID pIERce Md"      --> "David Pierce"
-        - "dr. KAtIe baRReTt DVM"    --> "Katie Barrett"
-        - "EDWArd JOneS jR."         --> "Edward Jones"
-        - "Taylor howeLl Dds"        --> "Taylor Howell"
+        - "mR. DAVID pIERce Md"      --> "Mr. David Pierce Md"
+        - "dr. KAtIe baRReTt DVM"    --> "Dr. Katie Barrett Dvm"
+        - "EDWArd JOneS jR."         --> "Edward Jones Jr."
         - "NaN" / None / ""          --> None (stocké en null)
     """
     if pd.isna(raw_name):
@@ -26,12 +25,8 @@ def clean_person_name(raw_name: str, stats: dict, field_key: str):
     
     original = str(raw_name)
     
-    # Regex ciblant les acronymes et titres isolés par des frontières de mot (\b)
-    pattern = r'\b(mr|mrs|ms|dr|miss|md|dds|phd|dvm|jr|ii|iii)\b\.?'
-    cleaned = re.sub(pattern, '', original, flags=re.IGNORECASE)
-    
     # Nettoyage des virgules résiduelles et espaces multiples
-    cleaned = re.sub(r'[\s,]+', ' ', cleaned).strip()
+    cleaned = re.sub(r'[\s,]+', ' ', original).strip()
     result = cleaned.title() if cleaned else None
 
     # Audit : Si le texte final diffère de l'original brut (hors espaces), on incrémente
@@ -49,11 +44,6 @@ def clean_hospital_name(raw_hospital: str, stats: dict):
     - Applique le format Title Case.
     - Incrémente le compteur si une correction a été appliquée.
     - Retourne None (null dans MongoDB) si le champ est vide ou absent.
-    
-    Exemples de transformation :
-        - '"Hernandez Rogers and Vang,"'    --> "Hernandez Rogers And Vang"
-        - '"and Garcia Morris Cunningham,"' --> "And Garcia Morris Cunningham"
-        - "  Group   Middleton  "           --> "Group Middleton"
     """
     if pd.isna(raw_hospital):
         return None
@@ -73,32 +63,7 @@ def clean_hospital_name(raw_hospital: str, stats: dict):
 
 def load_and_clean_data(csv_path: str) -> pd.DataFrame:
     """
-    Pipeline ETL complet de nettoyage et de validation des données médicales :
-    
-    Contrôles et règles appliqués :
-    --------------------------------
-    1. Schema Standardization :
-       - Conversion des en-têtes en snake_case strict (ex: "Blood Type" -> "blood_type").
-    
-    2. Data Completeness & Integrity :
-       - Suppression stricte des doublons parfaits (lignes 100% identiques).
-       - Les autres anomalies ne suppriment pas la ligne mais convertissent la valeur en None (null).
-    
-    3. String Normalization & Audit :
-       - Nettoyage des titres/casse sur les patients et médecins avec comptage des modifications.
-       - Nettoyage syntaxique des noms d'hôpitaux avec comptage.
-       - Uniformisation en Title Case des variables catégorielles.
-       - Normalisation et validation stricte du groupe sanguin.
-    
-    4. Numeric Integrity & Business Rules :
-       - Typage explicite des âges et numéros de chambre en entiers.
-       - Neutralisation des montants de facturation négatifs (convertis en null).
-    
-    5. Temporal Consistency & Feature Engineering :
-       - Parsing des dates d'admission et de sortie au format datetime.
-       - Vérification d'antériorité (sortie < entrée transformée en null).
-       - Calcul de la durée de séjour ('length_of_stay_days').
-       - Rapport d'audit complet tracé dans les logs.
+    Pipeline ETL complet de nettoyage et de validation des données médicales.
     """
     print(f"Extraction des données brutes depuis : {csv_path}")
     df = pd.read_csv(csv_path)
@@ -128,7 +93,6 @@ def load_and_clean_data(csv_path: str) -> pd.DataFrame:
     # -------------------------------------------------------------------------
     # 1. NORMALISATION DES NOMS DE COLONNES
     # -------------------------------------------------------------------------
-    # Exemple : "Medical Condition" --> "medical_condition"
     df.columns = [
         col.strip()
            .lower()
@@ -224,7 +188,7 @@ def load_and_clean_data(csv_path: str) -> pd.DataFrame:
     audit["dates_admission_invalides_null"] = int(df['date_of_admission'].isna().sum())
     audit["dates_sortie_invalides_null"] = int(df['discharge_date'].isna().sum())
 
-    # Incohérence métier : date de sortie antérieure à l'admission convertie en null (pas de suppression de ligne)
+    # Incohérence métier : date de sortie antérieure à l'admission convertie en null
     incoherent_dates_mask = (
         df['date_of_admission'].notna() &
         df['discharge_date'].notna() &
