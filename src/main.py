@@ -1,24 +1,29 @@
 import os
-from database import get_mongo_client
+from database import get_mongo_client, setup_database_roles
 from utils import load_and_clean_data, migrate_data
 from test import test_crud
 
 def main():
+    # Étape 1 : Créer les utilisateurs et leurs accès s'ils n'existent pas encore
+    setup_database_roles()
+
+    # Étape 2 : Indiquer où se trouve le fichier CSV de données médicales
     csv_path = os.getenv("CSV_PATH", "src/data/healthcare_dataset.csv")
 
-    # Connexion à MongoDB
+    # Étape 3 : Se connecter à MongoDB et choisir la table des patients
     client = get_mongo_client()
     db = client['medical_db']
     collection = db['patients']
 
-    # Phase 1 & 2 : Extraction et Nettoyage
+    # Étape 4 : Charger le CSV et nettoyer toutes les erreurs (doublons, dates incohérentes...)
     df_cleaned = load_and_clean_data(csv_path)
 
-    # Phase 3 : Chargement
+    # Étape 5 : Envoyer toutes les données propres dans MongoDB
     migrate_data(collection, df_cleaned)
 
-    # Phase 4 : Tests de validation CRUD
+    # Étape 6 : Faire un test rapide (ajouter, lire, modifier, supprimer un faux patient) pour vérifier que tout marche
     test_crud(collection)
 
+# Lance le programme automatiquement si on exécute ce fichier
 if __name__ == "__main__":
     main()
