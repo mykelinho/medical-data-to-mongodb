@@ -2,37 +2,47 @@ import os
 from pymongo import MongoClient
 
 def get_mongo_client():
-    # Récupère l'adresse de MongoDB définie dans Docker (ou prend celle par défaut)
+    # Connexion administrateur via l'URI définie dans Docker Compose
     mongo_uri = os.getenv("MONGO_URI", "mongodb://admin:admin@mongodb:27017/?authSource=admin")
-    # Ouvre et renvoie la connexion vers la base de données
     return MongoClient(mongo_uri)
 
 def setup_database_roles():
-    # 1. Connexion avec le compte administrateur principal
     client = get_mongo_client()
-    db = client["medical_db"]
+    admin_db = client["admin"]
+    medical_db = client["medical_db"]
 
-    # 2. Récupère la liste des utilisateurs qui existent déjà
-    # Cela évite que le script plante si on le relance plusieurs fois
-    existing_users = [u["user"] for u in db.command("usersInfo")["users"]]
-
-    # 3. Création du compte pour le script de migration (droits de lire et d'écrire des données)
-    if "etl_user" not in existing_users:
-        db.command(
-            "createUser", "etl_user",
-            pwd="etl_password",
-            roles=[{"role": "readWrite", "db": "medical_db"}]
+    # 1. Compte Admin Infra : dbadmin sur la base 'admin' (droit global)
+    admin_users = [u["user"] for u in admin_db.command("usersInfo")["users"]]
+    if "dbadmin" not in admin_users:
+        admin_db.command(
+            "createUser", "dbadmin",
+            pwd="dbadmin_password123",
+            roles=[{"role": "dbAdminAnyDatabase", "db": "admin"}]
         )
-        print("[SÉCURITÉ] Utilisateur etl_user créé (lecture et écriture).")
+        print("[SÉCURITÉ] Utilisateur dbadmin créé sur 'admin' (dbAdminAnyDatabase).")
 
-    # 4. Création du compte pour les soignants ou analystes (lecture seule, impossible de modifier)
-    if "reader_user" not in existing_users:
-        db.command(
-            "createUser", "reader_user",
-            pwd="reader_password",
+    # 2. Comptes sur la base métier 'medical_db'
+    medical_users = [u["user"] for u in medical_db.command("usersInfo")["users"]]
+
+    # Compte applicatif ETL : migrator
+    if "migrator" not in medical_users:
+        medical_db.command(
+            "createUser", "migrator",
+            pwd="migrator_password123",
+            roles=[
+                {"role": "readWrite", "db": "medical_db"},
+                {"role": "dbAdmin", "db": "medical_db"}
+            ]
+        )
+        print("[SÉCURITÉ] Utilisateur migrator créé sur 'medical_db' (readWrite, dbAdmin).")
+
+    # Compte consultation / audit : auditor
+    if "auditor" not in medical_users:
+        medical_db.command(
+            "createUser", "auditor",
+            pwd="auditor_password123",
             roles=[{"role": "read", "db": "medical_db"}]
         )
-        print("[SÉCURITÉ] Utilisateur reader_user créé (lecture seule).")
+        print("[SÉCURITÉ] Utilisateur auditor créé sur 'medical_db' (read).")
 
-    # 5. Ferme la connexion une fois terminé
     client.close()
