@@ -1,63 +1,130 @@
 # Migration NoSQL : Pipeline de Données Médicales sous Docker
 
-Ce projet permet de nettoyer, sécuriser et importer un fichier de 55 500 dossiers médicaux vers une base de données NoSQL MongoDB, en utilisant Docker pour que tout fonctionne automatiquement en une seule commande.
+Ce projet permet de nettoyer, fiabiliser et importer un fichier de 55 500 dossiers médicaux vers une base de données NoSQL MongoDB. L'ensemble de la solution est entièrement conteneurisé avec Docker pour s'exécuter automatiquement en une seule commande, sans nécessiter de configuration manuelle.
 
 ---
 
 ## Sommaire
 
 1. [Cadrage de la Mission](#1-cadrage-de-la-mission)
-2. [Comment Lancer la Migration (Guide Pas à Pas)](#2-comment-lancer-la-migration-guide-pas-à-pas)
-3. [Ce qui se Passe Pendant la Migration (L&#39;Orchestrateur)](#3-ce-qui-se-passe-pendant-la-migration-lorchestrateur)
-4. [Schéma de la Base de Données (Collection patients)](#4-schéma-de-la-base-de-données-collection-patients)
-5. [Architecture Docker et Rangement des Fichiers](#5-architecture-docker-et-rangement-des-fichiers)
-6. [Pourquoi MongoDB et Docker ?](#6-pourquoi-mongodb-et-docker-)
-7. [Validation des Tests (CRUD)](#7-validation-des-tests-crud)
-8. [Bilan Qualité du Nettoyage](#8-bilan-qualité-du-nettoyage)
-9. [Indexation de la Collection](#9-indexation-de-la-collection)
-10. [Sécurité et Comptes d&#39;Accès (RBAC)](#10-sécurité-et-comptes-daccès-rbac)
+2. [Environnement Technique (Python & Librairies)](#2-environnement-technique-python--librairies)
+3. [Prérequis et Installation de Docker (Windows & Debian/Ubuntu)](#3-prérequis-et-installation-de-docker-windows--debianubuntu)
+4. [Comment Lancer la Migration (Guide Pas à Pas)](#4-comment-lancer-la-migration-guide-pas-à-pas)
+5. [Ce qui se Passe Pendant la Migration (L'Orchestrateur)](#5-ce-qui-se-passe-pendant-la-migration-lorchestrateur)
+6. [Schéma de la Base de Données (Collection patients)](#6-schéma-de-la-base-de-données-collection-patients)
+7. [Architecture Docker et Rangement des Fichiers](#7-architecture-docker-et-rangement-des-fichiers)
+8. [Pourquoi MongoDB et Docker ?](#8-pourquoi-mongodb-et-docker-)
+9. [Validation des Tests (CRUD)](#9-validation-des-tests-crud)
+10. [Bilan Qualité du Nettoyage](#10-bilan-qualité-du-nettoyage)
+11. [Indexation de la Collection](#11-indexation-de-la-collection)
+12. [Sécurité et Comptes d'Accès (RBAC)](#12-sécurité-et-comptes-daccès-rbac)
 
 ---
 
 ## 1. Cadrage de la Mission
 
-* **Le Problème Initial :** Le client gère un fichier brut (`CSV`) de **55 500 dossiers de patients**. Ce fichier est devenu beaucoup trop lourd et trop lent à utiliser au quotidien pour les soignants.
-* **La Solution Mise en Place :**
-  - **Python (Le Nettoyage) :** Un programme qui lit le fichier, supprime les erreurs (doublons, noms mal écrits, montants négatifs) sans jamais abîmer le fichier d'origine.
-  - **MongoDB (Le Stockage) :** Une base moderne et rapide, qui permet de retrouver un dossier immédiatement et de sécuriser les accès.
-  - **Docker (Le Pack) :** Une boîte prête à l'emploi qui regroupe la base et le script pour que le projet tourne sur n'importe quel ordinateur sans rien installer de plus.
+* **Le Problème Initial :** Le client manipule **55 500 dossiers de patients** stockés dans un simple fichier plat brut (`CSV`). Ce fichier est devenu trop volumineux et trop lent pour les recherches et les tâches quotidiennes des équipes hospitalières.
+* **La Solution Déployée :**
+  * **Python (Le Nettoyage) :** Un programme automatisé qui lit le fichier, supprime les erreurs (doublons, fautes de casse dans les noms, factures négatives) sans jamais altérer le fichier CSV d'origine.
+  * **MongoDB (Le Stockage) :** Une base de données NoSQL orientée documents, rapide, évolutive et sécurisée par des accès personnalisés.
+  * **Docker (Le Pack) :** Une boîte prête à l'emploi qui regroupe la base et le script pour que le projet s'exécute de façon identique sur n'importe quel ordinateur.
 
 ---
 
-## 2. Comment Lancer la Migration (Guide Pas à Pas)
+## 2. Environnement Technique (Python & Librairies)
 
-### 2.1 Lancer le projet
+Le conteneur de traitement applicatif repose sur un environnement Python allégé et optimisé :
 
-Cette commande prépare l'environnement Python, démarre la base MongoDB et lance automatiquement le nettoyage et l'import des données :
+* **Version de Python :** `Python 3.10-slim` (image Linux officielle légère, limitant l'empreinte disque et la consommation de mémoire RAM).
+* **Dépendances applicatives (`requirements.txt`) :**
+  * **`pandas` :** Utilisé pour charger le fichier CSV en mémoire, supprimer les doublons, nettoyer les colonnes textuelles de manière vectorisée et calculer le nouvel indicateur métier de durée de séjour.
+  * **`pymongo` :** Le pilote officiel Python pour MongoDB. Il permet de se connecter à la base, d'initialiser les comptes et les permissions de sécurité, de créer les index B-tree et d'insérer les dossiers par lot (`insert_many`).
+
+---
+
+## 3. Prérequis et Installation de Docker (Windows & Debian/Ubuntu)
+
+Avant d'exécuter le projet, le moteur Docker doit être installé et en cours d'exécution sur votre machine.
+
+### Solution A — Installation sous Windows (Docker Desktop)
+
+1. **Activer WSL 2 (Windows Subsystem for Linux) :**
+   Ouvrez une invite PowerShell en tant qu'administrateur et exécutez :
+   ```powershell
+   wsl --update
+   ```
+2. **Installer Docker Desktop :**
+   - Téléchargez l'installateur officiel sur le site de Docker ([docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop)).
+   - Lancez l'installation en veillant à cocher l'option **« Use WSL 2 instead of Hyper-V »**.
+   - Redémarrez l'ordinateur si demandé.
+3. **Démarrer et vérifier Docker :**
+   - Lancez **Docker Desktop** depuis le menu Démarrer.
+   - Attendez que l'icône de la baleine dans la barre des tâches devienne fixe (statut *Engine running* vert).
+   - Testez dans un terminal :
+     ```powershell
+     docker --version
+     docker compose version
+     ```
+
+### Solution B — Installation sous Linux Debian / Ubuntu (Ligne de commande)
+
+Sur un serveur ou une machine Linux (Debian, Ubuntu), l'installation se fait directement via le gestionnaire de paquets `apt` :
+
+1. **Mettre à jour les paquets système :**
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y ca-certificates curl gnupg lsb-release
+   ```
+2. **Ajouter le dépôt officiel Docker :**
+   ```bash
+   sudo mkdir -p /etc/apt/keyrings
+   curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+   ```
+   *(Pour Ubuntu, remplacez `debian` par `ubuntu` dans l'URL ci-dessus).*
+3. **Installer Docker Engine et le plugin Docker Compose :**
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+   ```
+4. **Démarrer le service et autoriser votre utilisateur :**
+   ```bash
+   sudo systemctl enable --now docker
+   sudo usermod -aG docker $USER
+   ```
+   *(Déconnectez-vous puis reconnectez-vous pour que l'ajout au groupe `docker` prenne effet sans avoir à taper `sudo` devant chaque commande).*
+
+---
+
+## 4. Comment Lancer la Migration (Guide Pas à Pas)
+
+### 4.1 Lancer le projet
+
+Cette commande prépare l'environnement Python, démarre la base MongoDB et lance automatiquement le nettoyage et l'importation des données :
 
 ```bash
 docker compose up --build -d
 ```
 
-### 2.2 Vérifier que tout s'est bien passé (Voir les logs)
+### 4.2 Vérifier que tout s'est bien passé (Voir les logs)
 
-Cette commande affiche le rapport de nettoyage et confirme que les tests ont réussi :
+Cette commande affiche le rapport d'audit qualité du nettoyage et confirme le succès des tests :
 
 ```bash
 docker compose logs python_migration
 ```
 
-### 2.3 Se connecter à la base en toute sécurité (Mode Consultation)
+### 4.3 Se connecter à la base en toute sécurité (Mode Consultation)
 
-Pour vérifier les données dans MongoDB avec un compte en lecture seule (qui ne peut rien casser ni modifier) :
+Pour vérifier les données dans MongoDB avec le compte auditeur en lecture seule (qui protège la base contre toute altération) :
 
 ```bash
 docker exec -it mongodb_server mongosh -u auditor -p auditor_password123 --authenticationDatabase medical_db
 ```
 
-### 2.4 Vérifier les données dans MongoDB
+### 4.4 Vérifier les données dans MongoDB
 
-Une fois connecté dans le terminal MongoDB, tapez ces instructions simples :
+Une fois dans l'interpréteur interactif MongoSH :
 
 ```javascript
 use medical_db
@@ -66,9 +133,9 @@ db.patients.findOne()          // Affiche la fiche complète d'un patient
 exit                           // Pour quitter
 ```
 
-### 2.5 Tout arrêter et remettre à zéro
+### 4.5 Tout arrêter et remettre à zéro
 
-Pour stopper les conteneurs et effacer les données enregistrées afin de repartir d'une base propre :
+Pour stopper les conteneurs et purger le volume des données afin de repartir d'un état vierge :
 
 ```bash
 docker compose down -v
@@ -76,42 +143,42 @@ docker compose down -v
 
 ---
 
-## 3. Ce qui se Passe Pendant la Migration (L'Orchestrateur)
+## 5. Ce qui se Passe Pendant la Migration (L'Orchestrateur)
 
-Le fichier `main.py` est le chef d'orchestre du projet. Dès que Docker démarre, il exécute automatiquement ces 6 étapes dans l'ordre :
+Le fichier `main.py` est le chef d'orchestre du projet. Dès que le conteneur Python démarre, il déroule automatiquement ces 6 étapes dans l'ordre :
 
-1. **Étape 1 :** Créer les comptes utilisateurs et définir leurs droits s'ils n'existent pas encore (`setup_database_roles()`).
-2. **Étape 2 :** Trouver où est rangé le fichier CSV des données médicales (`healthcare_dataset.csv`).
-3. **Étape 3 :** Se connecter à MongoDB et ouvrir la collection `patients` dans la base `medical_db`.
-4. **Étape 4 :** Charger le CSV et corriger toutes les erreurs (`load_and_clean_data()`) : suppression des doublons, remise au propre des noms, et calcul de la durée du séjour.
-5. **Étape 5 :** Envoyer tous les dossiers propres dans MongoDB et poser les index (`migrate_data()`).
-6. **Étape 6 :** Faire un test rapide (ajouter, lire, modifier, supprimer un faux patient) pour vérifier que la base répond parfaitement (`test_crud()`).
+1. **Étape 1 :** Créer les comptes utilisateurs et définir leurs droits d'accès s'ils n'existent pas encore (`setup_database_roles()`).
+2. **Étape 2 :** Localiser le fichier CSV des données médicales brutes (`healthcare_dataset.csv`).
+3. **Étape 3 :** Établir la connexion à MongoDB et sélectionner la collection `patients` dans la base `medical_db`.
+4. **Étape 4 :** Charger le CSV et corriger toutes les erreurs de saisie (`load_and_clean_data()`) : suppression des doublons, harmonisation de la casse des noms et calcul de la durée de séjour.
+5. **Étape 5 :** Insérer tous les dossiers propres dans MongoDB et poser les index de performance (`migrate_data()`).
+6. **Étape 6 :** Réaliser un test fonctionnel rapide (ajouter, lire, modifier, supprimer un faux patient) pour valider que la base répond parfaitement (`test_crud()`).
 
 ---
 
-## 4. Schéma de la Base de Données (Collection patients)
+## 6. Schéma de la Base de Données (Collection patients)
 
-Chaque patient est enregistré sous la forme d'une fiche complète (un document BSON). Aucun tableau séparé n'est nécessaire.
+Chaque patient est enregistré sous la forme d'un document BSON complet. Toutes les informations sont regroupées au même endroit sans nécessiter de tables séparées.
 
-| Champ                   | Type          | Description et Règle Métier                                                                                          |
-| :---------------------- | :------------ | :--------------------------------------------------------------------------------------------------------------------- |
-| `_id`                 | ObjectId      | Numéro unique créé automatiquement par MongoDB.                                                                     |
-| `name`                | String        | Nom et prénom propres avec civilité conservée (`Mr.`, `Dr.`).                                                   |
-| `age`                 | Integer       | Âge du patient.                                                                                                       |
-| `gender`              | String        | Sexe du patient (`Male`, `Female`).                                                                                |
-| `blood_type`          | String        | Groupe sanguin vérifié (`A+`, `O-`, etc.).                                                                       |
-| `medical_condition`   | String        | Maladie ou diagnostic (ex. : Cancer, Diabète, Asthme).                                                                |
-| `doctor`              | String        | Nom du médecin traitant remis au propre.                                                                              |
-| `hospital`            | String        | Nom de l'hôpital nettoyé des virgules et espaces en trop.                                                            |
-| `insurance_provider`  | String        | Nom de l'assurance santé.                                                                                             |
-| `billing_amount`      | Double / Null | Montant de la facture (remplacé par vide si le montant était négatif).                                              |
-| `room_number`         | Integer       | Numéro de la chambre.                                                                                                 |
-| `admission_type`      | String        | Type d'entrée (`Emergency`, `Urgent`, `Elective`).                                                              |
-| `date_of_admission`   | String        | Date d'entrée à l'hôpital (`AAAA-MM-JJ`).                                                                         |
-| `discharge_date`      | String        | Date de sortie de l'hôpital (`AAAA-MM-JJ`).                                                                         |
-| `medication`          | String        | Médicament prescrit.                                                                                                  |
-| `test_results`        | String        | Résultat d'examen (`Normal`, `Abnormal`, `Inconclusive`).                                                       |
-| `length_of_stay_days` | Integer       | **Nouveau champ calculé :** nombre de jours passés à l'hôpital (`discharge_date` - `date_of_admission`). |
+| Champ | Type | Description et Règle Métier |
+| :--- | :--- | :--- |
+| `_id` | ObjectId | Numéro d'identification unique généré automatiquement par MongoDB. |
+| `name` | String | Nom et prénom propres avec civilité conservée (`Mr.`, `Dr.`). |
+| `age` | Integer | Âge du patient. |
+| `gender` | String | Sexe du patient (`Male`, `Female`). |
+| `blood_type` | String | Groupe sanguin vérifié (`A+`, `O-`, etc.). |
+| `medical_condition` | String | Maladie ou diagnostic (ex. : Cancer, Diabète, Asthme). |
+| `doctor` | String | Nom du médecin traitant remis au propre. |
+| `hospital` | String | Nom de l'établissement hospitalier sans espaces ni virgules parasites. |
+| `insurance_provider` | String | Nom de l'organisme d'assurance santé. |
+| `billing_amount` | Double / Null | Montant de la facture (remplacé par null si le montant était négatif). |
+| `room_number` | Integer | Numéro de chambre d'affectation. |
+| `admission_type` | String | Type d'admission (`Emergency`, `Urgent`, `Elective`). |
+| `date_of_admission` | String | Date d'entrée à l'hôpital (`AAAA-MM-JJ`). |
+| `discharge_date` | String | Date de sortie de l'hôpital (`AAAA-MM-JJ`). |
+| `medication` | String | Médicament prescrit. |
+| `test_results` | String | Résultat d'examen (`Normal`, `Abnormal`, `Inconclusive`). |
+| `length_of_stay_days` | Integer | **Nouveau champ calculé :** nombre de jours passés à l'hôpital (`discharge_date` - `date_of_admission`). |
 
 ### Exemple d'une fiche patient dans MongoDB :
 
@@ -139,7 +206,7 @@ Chaque patient est enregistré sous la forme d'une fiche complète (un document 
 
 ---
 
-## 5. Architecture Docker et Rangement des Fichiers
+## 7. Architecture Docker et Rangement des Fichiers
 
 ### Schéma du fonctionnement
 
@@ -148,63 +215,61 @@ Chaque patient est enregistré sous la forme d'une fiche complète (un document 
 │                                DOCKER                                  │
 │                                                                        │
 │   [ Fichier Source CSV ] ──> [ Scripts Python ] ──> [ Base MongoDB ]   │
-│      (55 500 lignes)          - main.py             (medical_db)       │
-│      Dossier partagé          - utils.py            Port 27017         │
-│      src/data                 - database.py         Dossier persistant │
-│                               - test.py             mongo_data         │
+│      (55 500 lignes)          - main.py              (medical_db)      │
+│      Dossier partagé          - utils.py             Port 27017        │
+│      src/data                 - database.py          Dossier persistant│
+│                               - test.py              mongo_data        │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Organisation des dossiers
 
 ```text
-├── Dockerfile                  # Recette pour construire l'image Python
-├── docker-compose.yml          # Fichier qui démarre MongoDB et Python ensemble
-├── README.md                   # Guide d'utilisation du projet
+├── Dockerfile                  # Instructions de build de l'image Python (Python 3.10-slim)
+├── docker-compose.yml          # Définition des services MongoDB et Python
+├── README.md                   # Guide d'utilisation et documentation technique
 └── src/
     ├── data/
-    │   └── healthcare_dataset.csv # Fichier CSV d'origine (non modifié)
-    ├── database.py             # Script qui gère la connexion et crée les utilisateurs
-    ├── main.py                 # Script principal qui lance toutes les étapes
-    ├── requirements.txt        # Liste des outils Python utilisés (pandas, pymongo)
-    ├── test.py                 # Script qui vérifie le bon fonctionnement de la base
-    └── utils.py                # Fonctions qui nettoient et transfèrent les données
+    │   └── healthcare_dataset.csv # Fichier CSV brut d'origine (non altéré)
+    ├── database.py             # Gestion des connexions et attribution des rôles RBAC
+    ├── main.py                 # Script principal exécutant les étapes dans l'ordre
+    ├── requirements.txt        # Dépendances Python nécessaires (pandas, pymongo)
+    ├── test.py                 # Batterie de tests fonctionnels CRUD
+    └── utils.py                # Fonctions de nettoyage, d'audit qualité et d'insertion
 ```
 
 ---
 
-## 6. Pourquoi MongoDB et Docker ?
+## 8. Pourquoi MongoDB et Docker ?
 
 ### MongoDB
-
-* **Format flexible :** On peut rajouter de nouvelles informations sur les fiches des patients plus tard sans tout casser.
-* **Recherches directes :** Toutes les informations d'un patient sont regroupées sur sa fiche, sans avoir besoin de faire des liaisons lentes entre plusieurs tableaux.
-* **Évolutif :** La base est capable d'accueillir des millions de dossiers supplémentaires sans perte de vitesse.
+* **Format flexible :** Permet d'ajouter plus tard de nouvelles informations médicales sans restructurer toute la base.
+* **Recherches directes :** Toutes les données d'un séjour sont réunies dans une même fiche, évitant des jointures lentes.
+* **Évolutif :** Conçu pour absorber la croissance continue des dossiers sans chute de performance.
 
 ### Docker
-
-* **Rapide et léger :** Les conteneurs démarrent en quelques secondes et consomment très peu de mémoire.
-* **Fonctionne partout :** Le projet tourne exactement de la même manière sur Windows, Mac ou Linux.
-* **Données conservées :** Même si on éteint Docker, les dossiers patients restent stockés en sécurité grâce au volume `mongo_data`.
-
----
-
-## 7. Validation des Tests (CRUD)
-
-À la fin de l'importation, le fichier `test.py` effectue 4 vérifications automatiques avec un faux patient pour prouver que la base fonctionne bien :
-
-* **[TEST 1] CREATE :** On ajoute un patient témoin dans la base → **CREATE OK**
-* **[TEST 2] READ :** On recherche ce patient et on vérifie qu'il existe bien → **READ OK**
-* **[TEST 3] UPDATE :** On modifie son âge (de 30 à 31 ans) pour vérifier l'enregistrement → **UPDATE OK**
-* **[TEST 4] DELETE :** On supprime ce faux patient pour laisser la base propre → **DELETE OK**
-
-> **Sécurité :** Si une seule de ces 4 étapes échoue, le programme s'arrête immédiatement et signale une erreur.
+* **Rapide et léger :** Les conteneurs démarrent en quelques secondes avec une très faible empreinte mémoire.
+* **Reproductibilité :** Le code s'exécute exactement de la même manière sous Windows, macOS ou Linux.
+* **Données conservées :** Même lors de l'arrêt des conteneurs, les dossiers patients sont préservés grâce au volume persistant `mongo_data`.
 
 ---
 
-## 8. Bilan Qualité du Nettoyage
+## 9. Validation des Tests (CRUD)
 
-Voici le rapport affiché par le conteneur Python à la fin du traitement (`docker compose logs python_migration`) :
+Avant de clôturer la migration, le script `test.py` exécute un cycle complet de validation avec un patient témoin :
+
+* **[TEST 1] Insertion patient témoin :** Insertion unitaire avec `insert_one` → **CREATE OK**
+* **[TEST 2] Assertion présence en base :** Recherche du document avec `find_one` → **READ OK**
+* **[TEST 3] Modification d'attribut :** Mise à jour de l'âge (de 30 à 31 ans) via `$set` avec `update_one` → **UPDATE OK**
+* **[TEST 4] Purge du patient témoin :** Suppression unitaire avec `delete_one` → **DELETE OK**
+
+> **Sécurité du pipeline :** Chaque test repose sur une assertion stricte. Si une seule vérification échoue, le programme s'arrête immédiatement pour empêcher l'exploitation d'une base non conforme.
+
+---
+
+## 10. Bilan Qualité du Nettoyage
+
+Rapport d'audit affiché dans la console à la fin de la migration (`docker compose logs python_migration`) :
 
 ```text
 Extraction des données brutes depuis : /app/src/data/healthcare_dataset.csv
@@ -238,30 +303,30 @@ Détail des anomalies transformées en NULL (None) :
 Migration validée : 54966 documents insérés dans MongoDB.
 ```
 
-*Note : Les données peuvent aussi être visualisées très facilement avec l'application graphique **MongoDB Compass**.*
+*Note : Les données peuvent être visualisées et explorées graphiquement avec le client officiel **MongoDB Compass**.*
 
 ---
 
-## 9. Indexation de la Collection
+## 11. Indexation de la Collection
 
-Un index fonctionne comme l'index à la fin d'un gros livre : au lieu de relire les 54 966 lignes une par une, la base va directement à la bonne page.
+Un index fonctionne comme l'index alphabétique à la fin d'un livre : il évite de parcourir l'intégralité des 54 966 documents et accélère l'accès direct aux dossiers.
 
-| Champ Clé            | Pourquoi mettre un index ?                                                                                               |
-| :-------------------- | :----------------------------------------------------------------------------------------------------------------------- |
-| `_id`               | **Identifiant unique :** permet d'ouvrir la fiche d'un patient instantanément.                                    |
-| `name`              | **Recherche par patient :** permet aux soignants de trouver directement un patient par son nom de famille.         |
-| `medical_condition` | **Recherche par maladie :** permet d'afficher en un clic tous les patients qui ont une maladie précise.           |
-| `date_of_admission` | **Par date d'arrivée :** permet d'afficher rapidement les arrivées récentes ou de faire des tris dans le temps. |
+| Champ Clé | Pourquoi mettre un index ? |
+| :--- | :--- |
+| `_id` | **Identifiant unique :** Permet à la base d'ouvrir la fiche d'un patient instantanément. |
+| `name` | **Recherche par patient :** Permet aux soignants de trouver directement un dossier par nom de famille sans latence. |
+| `medical_condition` | **Recherche par maladie :** Permet d'afficher immédiatement tous les patients diagnostiqués pour une pathologie précise. |
+| `date_of_admission` | **Par date d'arrivée :** Permet d'afficher rapidement les admissions récentes et de faciliter les tris chronologiques. |
 
 ---
 
-## 10. Sécurité et Comptes d'Accès (RBAC)
+## 12. Sécurité et Comptes d'Accès (RBAC)
 
-Pour éviter les accidents ou les vols de données, chaque compte a uniquement les droits nécessaires pour accomplir sa tâche (principe du moindre privilège) :
+L'accès à MongoDB respecte le principe du moindre privilège afin de cloisonner les rôles et d'éviter les suppressions accidentelles :
 
-| Rôle Logique             | Nom Utilisateur | Base           | Droits                     | Rôle et Explication                                                                |
-| :------------------------ | :-------------- | :------------- | :------------------------- | :---------------------------------------------------------------------------------- |
-| **Super-Admin**     | `root`        | `admin`      | `root`                   | Sert uniquement à créer la base au tout début. Inactif pour l'application.       |
-| **Admin Infra**     | `dbadmin`     | `admin`      | `dbAdminAnyDatabase`     | Pour les équipes techniques (maintenance, nettoyage, index).                       |
-| **Service ETL**     | `migrator`    | `medical_db` | `readWrite`, `dbAdmin` | Utilisé par le script Python pour insérer et modifier les données médicales.    |
-| **Audit / Métier** | `auditor`     | `medical_db` | `read`                   | Réservé à la consultation : impossible de supprimer ou de modifier des données. |
+| Rôle Logique | Nom Utilisateur | Base Auth | Droits MongoDB | Rôle et Explication |
+| :--- | :--- | :--- | :--- | :--- |
+| **Super-Admin** | `root` | `admin` | `root` | Création et initialisation du serveur MongoDB. Inactif pour l'application. |
+| **Admin Infra** | `dbadmin` | `admin` | `dbAdminAnyDatabase` | Destiné à l'équipe technique (maintenance, défragmentation, gestion des index). |
+| **Service ETL** | `migrator` | `medical_db` | `readWrite`, `dbAdmin` | Utilisé par le script Python pour insérer et mettre à jour les dossiers patients. |
+| **Audit / Métier** | `auditor` | `medical_db` | `read` | Réservé à la consultation : lecture seule stricte avec interdiction formelle de modifier ou supprimer des données. |
