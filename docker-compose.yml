@@ -15,6 +15,8 @@ services:
   migration_app:
     build: .
     container_name: python_migration
+    env_file:
+      - .env
     depends_on:
       - mongodb
     environment:
